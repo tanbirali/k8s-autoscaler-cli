@@ -2,26 +2,35 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func ScaleDeployment(namespace, name string, replicas int32){
+// ScaleDeployment scales a Kubernetes deployment to the desired number of replicas.
+func ScaleDeployment(namespace, name string, replicas int32) error {
 	client := GetClient()
 
-	dep, err := client.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get the deployment
+	dep, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log.Fatalf("Error getting deployment: %v",err)
+		return fmt.Errorf("error getting deployment %q: %w", name, err)
 	}
 
-	dep.Spec.Replicas := &replicas
-	_, err := client.AppsV1().Deployments(namespace).Update(context.TODO(), dep, metav1.UpdateOptions{})
+	// Set replicas
+	dep.Spec.Replicas = &replicas
 
+	// Update the deployment
+	_, err = client.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
 	if err != nil {
-		log.Fatalf("Error scaling deployment: %v", err)
+		return fmt.Errorf("error scaling deployment %q: %w", name, err)
 	}
 
-	log.Fatalf("Scaled %s to %d replicas ", name, replicas)
-	
+	log.Printf("✅ Scaled %s to %d replicas", name, replicas)
+	return nil
 }

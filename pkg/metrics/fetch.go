@@ -12,20 +12,17 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
+	metricsScheme "k8s.io/metrics/pkg/client/clientset/versioned/scheme"
 )
 
-// UsageStats holds CPU & Memory averages
 type UsageStats struct {
 	AvgCPU    float64 // in millicores
 	AvgMemory float64 // in MiB
 }
 
-// getKubeClients returns both core and metrics clients
 func getKubeClients() (*kubernetes.Clientset, *metricsv.Clientset, error) {
-	// Try in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		// Fallback to kubeconfig
 		kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
@@ -33,8 +30,7 @@ func getKubeClients() (*kubernetes.Clientset, *metricsv.Clientset, error) {
 		}
 	}
 
-	// Register for metrics API
-	if err := metricsv.AddToScheme(scheme.Scheme); err != nil {
+	if err := metricsScheme.AddToScheme(scheme.Scheme); err != nil {
 		log.Printf("warning: failed to add metrics scheme: %v", err)
 	}
 
@@ -51,7 +47,6 @@ func getKubeClients() (*kubernetes.Clientset, *metricsv.Clientset, error) {
 	return clientset, metricsClient, nil
 }
 
-// getPodMetrics fetches CPU (millicores) and Memory (MiB) for all pods matching a selector
 func getPodMetrics(namespace, selector string) ([]UsageStats, error) {
 	_, metricsClient, err := getKubeClients()
 	if err != nil {
@@ -72,21 +67,15 @@ func getPodMetrics(namespace, selector string) ([]UsageStats, error) {
 	for _, m := range podMetricsList.Items {
 		var totalCPU, totalMem float64
 		for _, c := range m.Containers {
-			cpuQty := c.Usage.Cpu().MilliValue() // millicores
-			memQty := c.Usage.Memory().Value()   // bytes
-			totalCPU += float64(cpuQty)
-			totalMem += float64(memQty) / (1024 * 1024) // MiB
+			totalCPU += float64(c.Usage.Cpu().MilliValue())
+			totalMem += float64(c.Usage.Memory().Value()) / (1024 * 1024)
 		}
-		results = append(results, UsageStats{
-			AvgCPU:    totalCPU,
-			AvgMemory: totalMem,
-		})
+		results = append(results, UsageStats{AvgCPU: totalCPU, AvgMemory: totalMem})
 	}
 
 	return results, nil
 }
 
-// GetDeploymentAverageUsage calculates avg CPU & memory for all pods in a deployment
 func GetDeploymentAverageUsage(namespace, deploymentName string) (UsageStats, error) {
 	clientset, _, err := getKubeClients()
 	if err != nil {

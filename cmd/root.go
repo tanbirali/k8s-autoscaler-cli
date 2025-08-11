@@ -1,19 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
-	"log"
-	"context"
 
 	"github.com/spf13/cobra"
 
-	"github.com/tanbirali/k8s-autoscaler-cli/k8s"
-	"github.com/tanbirali/k8s-autoscaler-cli/metrics"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/tanbirali/k8s-autoscaler-cli/pkg/k8s"
 )
+
 
 var (
 	namespace 			string
@@ -47,7 +45,7 @@ var rootCmd = &cobra.Command{
 
 			fmt.Printf("📊 Avg CPU: %.2f%%, Avg Memory: %.2f%%\n", avgCPU, avgMem)
 
-			dep, _ := client.AppsV1().Deployments(namespace).Get(context.TODO(), deployment, k8s.GetOptions)
+			dep, _ := client.AppsV1().Deployments(namespace).Get(context.TODO(), deployment, metaV1.GetOptions{})
 			currentReplicas := *dep.Spec.Replicas
 			newReplicas := currentReplicas
 
